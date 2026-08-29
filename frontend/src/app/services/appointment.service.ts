@@ -66,4 +66,15 @@ export class AppointmentService {
       headers: new HttpHeaders({Authorization: authorization})
     });
   }
+
+  deleteAppointment(id: string, username: string, password: string) {
+    const authorization = `Basic ${btoa(`${username}:${password}`)}`;
+    return this.http.delete<void>(`${this.api}/${id}`, {headers: new HttpHeaders({Authorization: authorization})});
+  }
+  updateAppointment(id: string, appointment: Appointment, username: string, password: string) {
+    const authorization = `Basic ${btoa(`${username}:${password}`)}`;
+    return this.http.put<Appointment>(`${this.apiBase}/api/admin/appointments/${id}`, appointment, {
+      headers: new HttpHeaders({Authorization: authorization})
+    });
+  }
 }

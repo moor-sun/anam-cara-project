@@ -21,48 +21,31 @@ import java.util.List;
 
 @Configuration
 public class SecurityConfig {
-  @Bean
-  CorsConfigurationSource corsConfigurationSource(
-      @Value("${app.cors.allowed-origins}") String allowedOrigins) {
+  @Bean CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins}") String allowedOrigins) {
     CorsConfiguration configuration = new CorsConfiguration();
-    configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-        .map(String::trim).filter(origin -> !origin.isBlank()).toList());
-    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
+    configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(",")).map(String::trim).filter(origin -> !origin.isBlank()).toList());
+    configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
     configuration.setAllowCredentials(true);
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", configuration);
-    return source;
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**", configuration); return source;
   }
-
-  @Bean
-  PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
+  @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+  @Bean UserDetailsService userDetailsService(@Value("${app.admin.username}") String username, @Value("${app.admin.password}") String password, PasswordEncoder encoder) {
+    return new InMemoryUserDetailsManager(User.withUsername(username).password(encoder.encode(password)).roles("ADMIN").build());
   }
-
-  @Bean
-  UserDetailsService userDetailsService(
-      @Value("${app.admin.username}") String username,
-      @Value("${app.admin.password}") String password,
-      PasswordEncoder encoder) {
-    return new InMemoryUserDetailsManager(
-        User.withUsername(username).password(encoder.encode(password)).roles("ADMIN").build());
-  }
-
-  @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-    return http
-        .csrf(csrf -> csrf.disable())
-        .cors(Customizer.withDefaults())
+  @Bean SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    return http.csrf(csrf -> csrf.disable()).cors(Customizer.withDefaults())
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(auth -> auth
-            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/appointments").permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/create-order", "/api/verify-payment").permitAll()
+        .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/appointments", "/api/create-order", "/api/verify-payment").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/appointments").hasRole("ADMIN")
-            .requestMatchers(HttpMethod.PUT, "/api/appointments/*/status").hasRole("ADMIN")
-            .anyRequest().permitAll())
-        .httpBasic(Customizer.withDefaults())
-        .build();
+            .requestMatchers(HttpMethod.POST, "/api/content").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.POST, "/api/admin/appointments").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.PUT, "/api/admin/appointments/*").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.DELETE, "/api/content/*").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.DELETE, "/api/appointments/*").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.PUT, "/api/content/*").hasRole("ADMIN")
+            .requestMatchers(HttpMethod.PUT, "/api/appointments/*/status").hasRole("ADMIN").anyRequest().permitAll())
+        .httpBasic(Customizer.withDefaults()).build();
   }
 }

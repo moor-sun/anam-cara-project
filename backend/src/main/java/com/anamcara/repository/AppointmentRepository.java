@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.DateTimeException;
 import java.util.*;
 
 @Repository
@@ -52,7 +53,36 @@ public class AppointmentRepository {
     }
     return a;
   }
-  public List<Appointment> findAll() {
+  public Appointment update(String id, Appointment changes) {
+    Appointment existing = findAll().stream().filter(a -> id.equals(a.id)).findFirst()
+        .orElseThrow(() -> new NoSuchElementException("Appointment not found."));
+    LocalDateTime newStart = LocalDateTime.parse(changes.preferredDate + "T" + changes.preferredTime);
+    boolean alreadyBooked = findAll().stream().filter(a -> !id.equals(a.id)).anyMatch(a -> overlaps(a, newStart));
+    if (alreadyBooked) throw new SlotUnavailableException("This appointment time has already been booked.");
+    changes.id=existing.id; changes.createdAt=existing.createdAt; changes.status=existing.status;
+    if(changes.paymentMethod==null||changes.paymentMethod.isBlank())changes.paymentMethod=existing.paymentMethod;
+    if(changes.paymentReference==null||changes.paymentReference.isBlank())changes.paymentReference=existing.paymentReference;
+    List<TransactWriteItem> writes=new ArrayList<>();
+    if(!"REJECTED".equals(changes.status))for(int minute=0;minute<60;minute++){
+      LocalDateTime point=newStart.plusMinutes(minute); Map<String,AttributeValue> slot=new HashMap<>();
+      slot.put("id",s("SLOT#"+point.toLocalDate()+"#"+point.toLocalTime())); slot.put("recordType",s("SLOT")); slot.put("appointmentId",s(id)); slot.put("createdAt",s(existing.createdAt));
+      writes.add(TransactWriteItem.builder().put(Put.builder().tableName(tableName).item(slot).conditionExpression("attribute_not_exists(id) OR appointmentId = :appointmentId").expressionAttributeValues(Map.of(":appointmentId",s(id))).build()).build());
+    }
+    Map<String,AttributeValue> item=new HashMap<>();
+    item.put("id",s(id));item.put("recordType",s("APPOINTMENT"));item.put("name",s(changes.name));item.put("phone",s(changes.phone));item.put("email",s(changes.email));item.put("service",s(changes.service));item.put("appointmentMode",s(changes.appointmentMode));item.put("preferredDate",s(changes.preferredDate));item.put("preferredTime",s(changes.preferredTime));item.put("paymentMethod",s(changes.paymentMethod));item.put("paymentAmount",n(changes.paymentAmount));item.put("paymentReference",s(changes.paymentReference));item.put("message",s(changes.message));item.put("status",s(changes.status));item.put("createdAt",s(changes.createdAt));
+    writes.add(TransactWriteItem.builder().put(Put.builder().tableName(tableName).item(item).conditionExpression("attribute_exists(id)").build()).build());
+    try{dynamoDb.transactWriteItems(TransactWriteItemsRequest.builder().transactItems(writes).build());}catch(TransactionCanceledException e){throw new SlotUnavailableException("This appointment time has already been booked.");}
+    if(!"REJECTED".equals(existing.status))try{
+      LocalDateTime oldStart=LocalDateTime.parse(existing.preferredDate+"T"+existing.preferredTime);
+      List<TransactWriteItem> deletes=new ArrayList<>();
+      for(int minute=0;minute<60;minute++){
+        LocalDateTime point=oldStart.plusMinutes(minute);
+        if(!point.isBefore(newStart)&&point.isBefore(newStart.plusMinutes(60)))continue;
+        deletes.add(TransactWriteItem.builder().delete(Delete.builder().tableName(tableName).key(Map.of("id",s("SLOT#"+point.toLocalDate()+"#"+point.toLocalTime()))).conditionExpression("attribute_not_exists(id) OR appointmentId = :appointmentId").expressionAttributeValues(Map.of(":appointmentId",s(id))).build()).build());
+      }
+      for(int from=0;from<deletes.size();from+=25){int to=Math.min(from+25,deletes.size());dynamoDb.transactWriteItems(TransactWriteItemsRequest.builder().transactItems(deletes.subList(from,to)).build());}
+    }catch(DateTimeException ignored){}    return changes;
+  }  public List<Appointment> findAll() {
     ScanResponse response = dynamoDb.scan(ScanRequest.builder().tableName(tableName).build());
     List<Appointment> list = new ArrayList<>();
     for (Map<String, AttributeValue> m : response.items()) {

@@ -8,17 +8,11 @@ import { ServicesComponent } from './app/components/services/services.component'
 import { ContactComponent } from './app/components/contact/contact.component';
 import { AppointmentComponent } from './app/components/appointment/appointment.component';
 import { AdminComponent } from './app/components/admin/admin.component';
+import { GalleryComponent } from './app/components/gallery/gallery.component';
+import { TestimonialsComponent } from './app/components/testimonials/testimonials.component';
 const routes: Routes = [
   {path:'', component: HomeComponent}, {path:'about', component: AboutComponent}, {path:'services', component: ServicesComponent},
-  {path:'appointment', component: AppointmentComponent}, {path:'contact', component: ContactComponent},
-  {path:'admin', component: AdminComponent}
+  {path:'gallery', component: GalleryComponent}, {path:'testimonials', component: TestimonialsComponent},
+  {path:'appointment', component: AppointmentComponent}, {path:'contact', component: ContactComponent}, {path:'admin', component: AdminComponent}
 ];
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideRouter(routes, withInMemoryScrolling({
-      anchorScrolling: 'enabled',
-      scrollPositionRestoration: 'enabled'
-    })),
-    provideHttpClient()
-  ]
-}).catch(err => console.error(err));
+bootstrapApplication(AppComponent, {providers:[provideRouter(routes, withInMemoryScrolling({anchorScrolling:'enabled', scrollPositionRestoration:'enabled'})), provideHttpClient()]}).catch(err => console.error(err));

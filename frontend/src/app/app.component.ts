@@ -6,6 +6,8 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">Home</a>
   <a routerLink="/about" routerLinkActive="active">About Us</a>
   <a routerLink="/services" routerLinkActive="active">Services</a>
+  <a routerLink="/gallery" routerLinkActive="active">Gallery</a>
+  <a routerLink="/testimonials" routerLinkActive="active">Testimonials</a>
   <a routerLink="/appointment" routerLinkActive="active">Appointment</a>
   <a routerLink="/contact" routerLinkActive="active">Contact</a>
   <a routerLink="/admin" routerLinkActive="active">Admin</a>

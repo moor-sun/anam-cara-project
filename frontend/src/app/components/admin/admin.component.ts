@@ -1,116 +1,12 @@
-import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Appointment, AppointmentService } from '../../services/appointment.service';
-
-@Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
-    <section class="section admin-page">
-      <h1>Appointment Admin</h1>
-
-      <form *ngIf="!authenticated" (ngSubmit)="login()" class="admin-login">
-        <label>Username</label>
-        <input name="username" autocomplete="username" required [(ngModel)]="username">
-        <label>Password</label>
-        <input name="password" type="password" autocomplete="current-password" required [(ngModel)]="password">
-        <button type="submit" [disabled]="loading">{{ loading ? 'Signing in...' : 'Sign in' }}</button>
-        <p *ngIf="error" class="error">{{ error }}</p>
-      </form>
-
-      <div *ngIf="authenticated">
-        <div class="admin-actions">
-          <p><b>{{ appointments.length }}</b> appointment request(s)</p>
-          <button type="button" (click)="load()" [disabled]="loading">Refresh</button>
-          <button type="button" class="secondary" (click)="logout()">Sign out</button>
-        </div>
-        <p *ngIf="error" class="error">{{ error }}</p>
-        <div class="table-wrap" *ngIf="appointments.length; else emptyState">
-          <table>
-            <thead>
-              <tr><th>Received</th><th>Client</th><th>Service & type</th><th>Preferred slot</th><th>Payment</th><th>Message</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let appointment of appointments">
-                <td>{{ appointment.createdAt | date:'medium' }}</td>
-                <td><b>{{ appointment.name }}</b><br>{{ appointment.phone }}<br>{{ appointment.email }}</td>
-                <td>{{ appointment.service }}<br><b>{{ appointment.appointmentMode || 'Not specified' }}</b></td>
-                <td>{{ appointment.preferredDate || 'Not provided' }}<br>{{ appointment.preferredTime || '' }}</td>
-                <td>{{ appointment.paymentMethod || 'Not provided' }} — ₹{{ appointment.paymentAmount || 1000 }}<br><b>Payment ID: {{ appointment.paymentReference || 'Not provided' }}</b><br>Razorpay signature verified before submission</td>
-                <td>{{ appointment.message || '—' }}</td>
-                <td>
-                  <span class="status">{{ appointment.status }}</span>
-                  <div class="status-actions" *ngIf="appointment.status === 'PAYMENT_PENDING' || appointment.status === 'NEW'">
-                    <button type="button" (click)="setStatus(appointment, 'CONFIRMED')" [disabled]="updatingId === appointment.id">Confirm</button>
-                    <button type="button" class="reject" (click)="setStatus(appointment, 'REJECTED')" [disabled]="updatingId === appointment.id">Reject</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <ng-template #emptyState><div class="card">No appointments have been submitted.</div></ng-template>
-      </div>
-    </section>
-  `
-})
-export class AdminComponent {
-  username = '';
-  password = '';
-  appointments: Appointment[] = [];
-  authenticated = false;
-  loading = false;
-  error = '';
-  updatingId = '';
-
-  constructor(private appointmentService: AppointmentService) {}
-
-  login(): void {
-    this.load();
-  }
-
-  load(): void {
-    this.loading = true;
-    this.error = '';
-    this.appointmentService.all(this.username, this.password).subscribe({
-      next: appointments => {
-        this.appointments = appointments.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        this.authenticated = true;
-        this.loading = false;
-      },
-      error: response => {
-        this.loading = false;
-        if (response.status === 401) {
-          this.authenticated = false;
-          this.error = 'Invalid admin username or password.';
-        } else {
-          this.error = 'Could not load appointments. Confirm that the backend is running.';
-        }
-      }
-    });
-  }
-
-  logout(): void {
-    this.username = '';
-    this.password = '';
-    this.appointments = [];
-    this.authenticated = false;
-    this.error = '';
-  }
-
-  setStatus(appointment: Appointment, status: 'CONFIRMED' | 'REJECTED'): void {
-    this.updatingId = appointment.id;
-    this.error = '';
-    this.appointmentService.updateStatus(appointment.id, status, this.username, this.password).subscribe({
-      next: updated => {
-        appointment.status = updated.status;
-        this.updatingId = '';
-      },
-      error: () => {
-        this.updatingId = '';
-        this.error = 'Could not update the appointment. Please try again.';
-      }
-    });
-  }
-}
+import { CommonModule } from '@angular/common';import { Component } from '@angular/core';import { FormsModule } from '@angular/forms';import { Appointment,AppointmentService } from '../../services/appointment.service';import { ContentService } from '../../services/content.service';import { AdminContentComponent } from './admin-content.component';import { ManualAppointmentComponent } from './manual-appointment.component';
+type AdminTab='appointments'|'manual'|'content';
+@Component({standalone:true,imports:[CommonModule,FormsModule,AdminContentComponent,ManualAppointmentComponent],styles:[`
+.admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 28px;padding-bottom:12px;border-bottom:1px solid #d8c7aa}.admin-tabs button{background:#fff!important;color:#5a1724!important;border:1px solid #d4c3a6;border-radius:20px}.admin-tabs button.active{background:#5a1724!important;color:#fff!important;border-color:#5a1724}.tab-panel{animation:fade .18s ease}.tab-intro{color:#685b50;margin-top:-10px}.appointment-edit{margin:18px 0;padding:18px;border:1px solid #d8c7aa;border-radius:14px;background:#fffaf2}.appointment-edit .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px}.appointment-edit .actions{display:flex;gap:10px;margin-top:14px}@media(max-width:800px){.appointment-edit .fields{grid-template-columns:1fr}}@keyframes fade{from{opacity:.35}to{opacity:1}}
+`],template:`
+<section class="section admin-page"><h1>Admin</h1><form *ngIf="!authenticated" (ngSubmit)="login()" class="admin-login"><label>Username</label><input name="username" autocomplete="username" required [(ngModel)]="username"><label>Password</label><input name="password" type="password" autocomplete="current-password" required [(ngModel)]="password"><button type="submit" [disabled]="loading">{{loading?'Signing in...':'Sign in'}}</button><p *ngIf="error" class="error">{{error}}</p></form>
+<div *ngIf="authenticated"><div class="admin-actions"><p><b>{{appointments.length}}</b> appointment request(s)</p><button type="button" (click)="load()" [disabled]="loading">Refresh</button><button type="button" (click)="exportAppointments()" [disabled]="!appointments.length">Export Appointments</button><button type="button" class="secondary" (click)="logout()">Sign out</button></div><p *ngIf="error" class="error">{{error}}</p><p *ngIf="success" class="success">{{success}}</p>
+<nav class="admin-tabs" aria-label="Admin sections"><button type="button" [class.active]="activeTab==='appointments'" (click)="activeTab='appointments'">Appointments</button><button type="button" [class.active]="activeTab==='manual'" (click)="activeTab='manual'">Add Manual Appointment</button><button type="button" [class.active]="activeTab==='content'" (click)="activeTab='content'">Gallery & Testimonials</button></nav>
+<div class="tab-panel" *ngIf="activeTab==='appointments'"><h2>Appointments</h2><p class="tab-intro">Review online and manually entered bookings.</p><form class="appointment-edit" *ngIf="editingAppointment as edit" (ngSubmit)="saveAppointment()" #editForm="ngForm"><h3>Edit appointment</h3><div class="fields"><div><label>Name</label><input required name="editName" [(ngModel)]="edit.name"></div><div><label>Phone</label><input required name="editPhone" [(ngModel)]="edit.phone"></div><div><label>Email</label><input type="email" name="editEmail" [(ngModel)]="edit.email"></div><div><label>Service</label><select required name="editService" [(ngModel)]="edit.service"><option>Family Counselling</option><option>Career Counselling</option><option>Adolescent Counselling</option><option>School Counselling</option><option>Corporate Wellness</option></select></div><div><label>Appointment type</label><select required name="editMode" [(ngModel)]="edit.appointmentMode"><option>Online</option><option>In person</option></select></div><div><label>Date</label><input required type="date" name="editDate" [(ngModel)]="edit.preferredDate"></div><div><label>Time</label><input required type="time" name="editTime" [(ngModel)]="edit.preferredTime" min="10:00" max="18:00" step="1800"></div><div><label>Amount paid (&#8377;)</label><input required type="number" name="editAmount" [(ngModel)]="edit.paymentAmount" min="0" step="1"></div><div><label>Payment method</label><input name="editPaymentMethod" [(ngModel)]="edit.paymentMethod"></div><div><label>Payment reference</label><input name="editPaymentReference" [(ngModel)]="edit.paymentReference"></div><div><label>Notes</label><textarea rows="2" name="editMessage" [(ngModel)]="edit.message"></textarea></div></div><div class="actions"><button type="submit" [disabled]="editForm.invalid||savingAppointmentId===edit.id">{{savingAppointmentId===edit.id?'Saving...':'Save changes'}}</button><button type="button" class="secondary" (click)="cancelEdit()">Cancel</button></div></form><div class="table-wrap" *ngIf="appointments.length;else emptyState"><table><thead><tr><th>Received</th><th>Client</th><th>Service & type</th><th>Preferred slot</th><th>Payment</th><th>Message</th><th>Status</th></tr></thead><tbody><tr *ngFor="let a of appointments"><td>{{a.createdAt|date:'medium'}}</td><td><b>{{a.name}}</b><br>{{a.phone}}<br>{{a.email}}</td><td>{{a.service}}<br><b>{{a.appointmentMode||'Not specified'}}</b></td><td>{{a.preferredDate||'Not provided'}}<br>{{a.preferredTime||''}}</td><td>{{a.paymentMethod||'Not provided'}} — ₹{{a.paymentAmount||0}}<br><b>Payment ID: {{a.paymentReference||'Not provided'}}</b></td><td>{{a.message||'—'}}</td><td><span class="status">{{a.status}}</span><div class="status-actions" *ngIf="a.status==='PAYMENT_PENDING'||a.status==='NEW'"><button type="button" (click)="setStatus(a,'CONFIRMED')" [disabled]="updatingId===a.id">Confirm</button><button type="button" class="reject" (click)="setStatus(a,'REJECTED')" [disabled]="updatingId===a.id">Reject</button></div><button type="button" (click)="startEdit(a)" [disabled]="savingAppointmentId===a.id">Edit</button><button type="button" class="reject" (click)="deleteAppointment(a)" [disabled]="deletingAppointmentId===a.id">{{deletingAppointmentId===a.id?'Deleting...':'Delete'}}</button></td></tr></tbody></table></div><ng-template #emptyState><div class="card">No appointments have been submitted.</div></ng-template></div>
+<div class="tab-panel" *ngIf="activeTab==='manual'"><app-manual-appointment [username]="username" [password]="password"></app-manual-appointment></div>
+<div class="tab-panel" *ngIf="activeTab==='content'"><app-admin-content [username]="username" [password]="password"></app-admin-content><div class="admin-content-grid"><form (ngSubmit)="submitGallery()"><h2>Add to Gallery</h2><label>Photo or video</label><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" required (change)="selectGalleryFile($event)"><label>Caption (optional)</label><input name="galleryTitle" [(ngModel)]="galleryTitle" maxlength="150"><button type="submit" [disabled]="publishing||!galleryFile">{{publishing?'Uploading...':'Publish to Gallery'}}</button></form><form (ngSubmit)="submitTestimonial()"><h2>Add Testimonial</h2><label>Testimonial</label><textarea name="testimonial" rows="5" required [(ngModel)]="testimonial"></textarea><label>Name</label><input name="testimonialName" required [(ngModel)]="testimonialName"><label>Company / organisation (optional)</label><input name="testimonialCompany" [(ngModel)]="testimonialCompany"><label>Photo or video (optional)</label><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" (change)="selectTestimonialFile($event)"><button type="submit" [disabled]="publishing||!testimonial.trim()||!testimonialName.trim()">{{publishing?'Publishing...':'Publish Testimonial'}}</button></form></div></div></div></section>`})
+export class AdminComponent{activeTab:AdminTab='appointments';username='';password='';appointments:Appointment[]=[];authenticated=false;loading=false;error='';success='';updatingId='';deletingAppointmentId='';savingAppointmentId='';editingAppointment?:Appointment;publishing=false;galleryFile?:File;galleryTitle='';testimonial='';testimonialName='';testimonialCompany='';testimonialFile?:File;constructor(private appointmentsService:AppointmentService,private contentService:ContentService){}login(){this.load();}load(){this.loading=true;this.error='';this.appointmentsService.all(this.username,this.password).subscribe({next:v=>{this.appointments=v.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));this.authenticated=true;this.loading=false;},error:r=>{this.loading=false;this.authenticated=false;this.error=r.status===401?'Invalid admin username or password.':'Could not load appointments. Confirm that the backend is running.';}});}exportAppointments(){const headers=['Received','Name','Phone','Email','Service','Appointment Type','Date','Time','Payment Method','Amount Paid','Payment Reference','Notes','Status'];const rows=this.appointments.map(a=>[a.createdAt,a.name,a.phone,a.email,a.service,a.appointmentMode,a.preferredDate,a.preferredTime,a.paymentMethod,a.paymentAmount,a.paymentReference,a.message,a.status]);const csv=[headers,...rows].map(row=>row.map(value=>this.csvCell(value)).join(',')).join('\r\n');const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`anam-cara-appointments-${new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}.csv`;link.click();URL.revokeObjectURL(url);}private csvCell(value:unknown){const text=String(value??'').replace(/"/g,'""');return `"${text}"`;}logout(){this.username='';this.password='';this.appointments=[];this.authenticated=false;this.error='';this.success='';this.activeTab='appointments';}selectGalleryFile(e:Event){this.galleryFile=(e.target as HTMLInputElement).files?.[0];}selectTestimonialFile(e:Event){this.testimonialFile=(e.target as HTMLInputElement).files?.[0];}submitGallery(){if(!this.galleryFile)return;const d=new FormData();d.append('contentType','GALLERY');d.append('title',this.galleryTitle);d.append('media',this.galleryFile);this.publish(d,()=>{this.galleryFile=undefined;this.galleryTitle='';},'Gallery item published.');}submitTestimonial(){const d=new FormData();d.append('contentType','TESTIMONIAL');d.append('testimonial',this.testimonial);d.append('name',this.testimonialName);d.append('company',this.testimonialCompany);if(this.testimonialFile)d.append('media',this.testimonialFile);this.publish(d,()=>{this.testimonial='';this.testimonialName='';this.testimonialCompany='';this.testimonialFile=undefined;},'Testimonial published.');}private publish(d:FormData,done:()=>void,message:string){this.publishing=true;this.error='';this.success='';this.contentService.create(d,this.username,this.password).subscribe({next:()=>{this.publishing=false;this.success=message;done();},error:r=>{this.publishing=false;this.error=r.error?.message||'Could not publish this content.';}});}startEdit(a:Appointment){this.error='';this.success='';this.editingAppointment={...a};}cancelEdit(){this.editingAppointment=undefined;}saveAppointment(){const edit=this.editingAppointment;if(!edit)return;this.savingAppointmentId=edit.id;this.error='';this.success='';this.appointmentsService.updateAppointment(edit.id,edit,this.username,this.password).subscribe({next:updated=>{const index=this.appointments.findIndex(a=>a.id===updated.id);if(index>=0)this.appointments[index]=updated;this.savingAppointmentId='';this.editingAppointment=undefined;this.success='Appointment updated.';},error:r=>{this.savingAppointmentId='';this.error=r.error?.message||r.error?.detail||(r.status===409?'That time is already booked.':r.status===404?'Appointment editing is not available in the running backend. Restart the latest backend build.':'Could not update the appointment.');}});}setStatus(a:Appointment,status:'CONFIRMED'|'REJECTED'){this.updatingId=a.id;this.appointmentsService.updateStatus(a.id,status,this.username,this.password).subscribe({next:u=>{a.status=u.status;this.updatingId='';},error:()=>{this.updatingId='';this.error='Could not update the appointment.';}});}deleteAppointment(a:Appointment){if(!confirm(`Delete the appointment for ${a.name}? The reserved slot will be released.`))return;this.deletingAppointmentId=a.id;this.error='';this.appointmentsService.deleteAppointment(a.id,this.username,this.password).subscribe({next:()=>{this.appointments=this.appointments.filter(x=>x.id!==a.id);this.deletingAppointmentId='';},error:r=>{this.deletingAppointmentId='';this.error=r.error?.message||r.error?.detail||'Could not delete the appointment.';}});}}
